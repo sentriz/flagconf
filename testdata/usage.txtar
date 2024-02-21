@@ -1,0 +1,15 @@
+exec test
+! stderr .
+
+exec test -h
+! stdout .
+stderr 'Usage of test:'
+
+! exec test -will-err a
+! stdout .
+stderr 'invalid option for will-err'
+
+env TEST_WILL_ERR=1
+! exec test
+! stdout .
+stderr 'invalid option for will-err'

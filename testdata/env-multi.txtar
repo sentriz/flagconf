@@ -1,0 +1,15 @@
+env TEST_ARR=one
+exec test
+stdout 'arr "one"$'
+
+env TEST_ARR=one,two
+exec test
+stdout 'arr "one", "two"$'
+
+env TEST_ARR=one,two,thr\,eee,four
+exec test
+stdout 'arr "one", "two", "thr,eee", "four"$'
+
+env TEST_ARR=a,b
+exec test -arr x -arr y
+stdout 'arr "x", "y"$'

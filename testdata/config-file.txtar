@@ -1,0 +1,14 @@
+exec test -config-path conf
+stdout 'str the str'
+stdout 'arr "value 1", "value 2"'
+
+# cli has higher priority
+exec test -config-path conf -str other
+stdout 'str other'
+stdout 'arr "value 1", "value 2"'
+
+-- conf --
+str the str
+# ignore comments
+arr value 1
+arr value 2

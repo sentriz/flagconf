@@ -1,0 +1,38 @@
+extensions to Go's flag package to support prefixed environment variables and a simple config file format
+
+$ go install go.senan.xyz/flagconf@latest
+
+func main() {
+    // stdlib flag
+    confPath := flag.String("config-path", "", "")
+    someString = flag.String("some-string", "", "some fancy string")
+    customArray = flag.String("some-bool", "", "some custom bool")
+
+    var sr stringArray // implements flag.Value
+    flag.Var(&sr, "string-array", "custom string array type with flag.Value")
+
+    flag.Parse()
+    flagconf.ParseEnv()             // error/exit works same as flag.Parse()
+    flagconf.ParseConfig(*confPath) // error/exit works same as flag.Parse()
+}
+
+$ my-app -some-string str # use as normal
+
+# use env vars instead
+# (prefix comes from FlagSet.Name()/os.Args[0], change with custom FlagSet or flag.CommandLine.Init())
+$ env MY_APP_SOME_STRING=str my-app
+$ env MY_APP_SOME_STRING=str my-app -some-string other # cli takes priority
+
+$ my-app -string-array one -string-array two   # stack args for cli lists
+$ env MY_APP_SRING_ARRAY=one,two my-app        # use comma for env lists
+$ env MY_APP_SRING_ARRAY=one,two\,three my-app # escape delimiter with \ if you need
+
+$ cat conf
+# repeat keys for config file lists
+string-array one
+string-array two
+$ my-app -config-path conf
+
+$ env MY_APP_CONFIG_PATH=conf my-app # provide config path as env var if you like
+
+$ env MY_APP_SOME_STRING=a my-app -some-bool 1 -config-path conf # stack all 3

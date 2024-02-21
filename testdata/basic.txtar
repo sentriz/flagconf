@@ -1,0 +1,7 @@
+exec test -str test -arr a -arr b
+stdout 'str test'
+stdout 'arr "a", "b"'
+
+exec test -str n -arr test
+stdout 'str n'
+stdout 'arr "test"'
