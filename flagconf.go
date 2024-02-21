@@ -55,6 +55,9 @@ func ParseConfigSet(fl *flag.FlagSet, path string) (err error) {
 	}()
 
 	file, err := os.Open(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
 	if err != nil {
 		return fmt.Errorf("open config file: %w", err)
 	}
