@@ -19,7 +19,7 @@ func main() {
 $ my-app -some-string str # use as normal
 
 # use env vars instead
-# (prefix comes from FlagSet.Name()/os.Args[0], change with custom FlagSet or flag.CommandLine.Init())
+# prefix comes from FlagSet.Name() (defaults to os.Args[0], can be changed with flag.CommandLine.Init()
 $ env MY_APP_SOME_STRING=str my-app
 $ env MY_APP_SOME_STRING=str my-app -some-string other # cli takes priority
 
