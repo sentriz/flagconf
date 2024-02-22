@@ -15,7 +15,7 @@ func ParseEnv() (err error) {
 }
 func ParseEnvSet(fl *flag.FlagSet, env []string) (err error) {
 	defer func() {
-		err = mimicFlagSetError(fl, err)
+		mimicFlagSetError(fl, err)
 	}()
 
 	envMap := map[string]string{}
@@ -51,7 +51,7 @@ func ParseConfigSet(fl *flag.FlagSet, path string) (err error) {
 		return nil
 	}
 	defer func() {
-		err = mimicFlagSetError(fl, err)
+		mimicFlagSetError(fl, err)
 	}()
 
 	file, err := os.Open(path)
@@ -133,9 +133,9 @@ func splitEscape(string string, sep, esc string) []string {
 	return tokens
 }
 
-func mimicFlagSetError(fl *flag.FlagSet, err error) error {
+func mimicFlagSetError(fl *flag.FlagSet, err error) {
 	if err == nil {
-		return nil
+		return
 	}
 
 	fmt.Fprintln(fl.Output(), err)
@@ -143,10 +143,9 @@ func mimicFlagSetError(fl *flag.FlagSet, err error) error {
 		fl.Usage()
 	}
 	switch fl.ErrorHandling() {
-	case flag.PanicOnError:
-		panic(err)
 	case flag.ExitOnError:
 		os.Exit(2)
+	case flag.PanicOnError:
+		panic(err)
 	}
-	return err
 }
