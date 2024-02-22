@@ -1,3 +1,49 @@
+/*
+flagconf provides extensions to Go's flag package to support prefixed environment variables and a simple config file format.
+
+# install
+
+	$ go install go.senan.xyz/flagconf@latest
+
+# example program
+
+	func main() {
+	    // stdlib flag
+	    confPath := flag.String("config-path", "", "")
+	    someString = flag.String("some-string", "", "some fancy string")
+	    customArray = flag.String("some-bool", "", "some custom bool")
+
+	    var sr stringArray // implements flag.Value
+	    flag.Var(&sr, "string-array", "custom string array type with flag.Value")
+
+	    flag.Parse()
+	    flagconf.ParseEnv()
+	    flagconf.ParseConfig(*confPath)
+	}
+
+# usage
+
+	$ my-app -some-string str # use as normal
+
+	# use env vars instead
+	# prefix comes from FlagSet.Name() (defaults to os.Args[0], can be changed with flag.CommandLine.Init()
+	$ env MY_APP_SOME_STRING=str my-app
+	$ env MY_APP_SOME_STRING=str my-app -some-string other # cli takes priority
+
+	$ my-app -string-array one -string-array two   # stack args for cli lists
+	$ env MY_APP_SRING_ARRAY=one,two my-app        # use comma for env lists
+	$ env MY_APP_SRING_ARRAY=one,two\,three my-app # escape delimiter with \ if you need
+
+	$ cat conf
+	# repeat keys for config file lists
+	string-array one
+	string-array two
+	$ my-app -config-path conf
+
+	$ env MY_APP_CONFIG_PATH=conf my-app # provide config path as env var if you like
+
+	$ env MY_APP_SOME_STRING=a my-app -some-bool 1 -config-path conf # stack all 3
+*/
 package flagconf
 
 import (
@@ -10,9 +56,25 @@ import (
 	"strings"
 )
 
+// ParseEnv calls [ParseEnvSet] with the global [flag.CommandLine] and [os.Environ]. Note that err can safely be ignored
+// if the [flag.ErrorHandling] is not [flag.ContinueOnError].
 func ParseEnv() (err error) {
 	return ParseEnvSet(flag.CommandLine, os.Environ())
 }
+
+// ParseEnvSet visits flags from fl that have not been provided yet, and finds corresponding values
+// in the environment provided by env.
+//
+// If [flag.FlagSet.Name] is set, such as with [flag.FlagSet.Init], then that will be used as a prefix for
+// the variable. For example a name of "my-app" would result in a variable like MY_APP_EXAMPLE_FLAG (Note that
+// for the global [flag.CommandLine], the name defaults to os.Args[0] so Init() may not need to be called if
+// that name suits your project already)
+//
+// Environment variables will be split on a "," making it possible to parse arrays. The array flag should implement
+// [flag.Value] to that Set() can be called multiple times. The delimiter can be escaped with a backslash. For
+// example MY_APP_ARRAY=a,b\,c,d will call [flag.Value.Set] for "a", "b,c", and "d".
+//
+// Note that err can safely be ignored if the [flag.ErrorHandling] is not [flag.ContinueOnError].
 func ParseEnvSet(fl *flag.FlagSet, env []string) (err error) {
 	defer func() {
 		mimicFlagSetError(fl, err)
@@ -43,9 +105,20 @@ func ParseEnvSet(fl *flag.FlagSet, env []string) (err error) {
 	return errors.Join(flagErrs...)
 }
 
+// ParseEnv calls [ParseConfigSet] with the global [flag.CommandLine]. Note that err can safely be ignored
+// if the [flag.ErrorHandling] is not [flag.ContinueOnError].
 func ParseConfig(path string) (err error) {
 	return ParseConfigSet(flag.CommandLine, path)
 }
+
+// ParseConfigSet visits flags from fl that have not been provided yet, and finds corresponding values in the
+// config file specified by path. The format for the config file is one line per flag value, and key value
+// pairs are delimited by a space character. Key values can be repeated making it possible to parse arrays.
+// The array flag should implement [flag.Value] to that Set() can be called multiple times. For example
+//
+//	my-flag my value
+//	my-array value one
+//	my-array value two
 func ParseConfigSet(fl *flag.FlagSet, path string) (err error) {
 	if path == "" {
 		return nil
