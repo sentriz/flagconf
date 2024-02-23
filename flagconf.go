@@ -119,6 +119,8 @@ func ParseConfig(path string) (err error) {
 //	my-flag my value
 //	my-array value one
 //	my-array value two
+//
+// It is not an error if the path argument, or the file that it points to, is empty.
 func ParseConfigSet(fl *flag.FlagSet, path string) (err error) {
 	if path == "" {
 		return nil
