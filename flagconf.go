@@ -112,13 +112,21 @@ func ParseConfig(path string) (err error) {
 }
 
 // ParseConfigSet visits flags from fl that have not been provided yet, and finds corresponding values in the
-// config file specified by path. The format for the config file is one line per flag value, and key value
+// config file specified by path.
+//
+// The format for the config file is one line per flag value, and key value
 // pairs are delimited by a space character. Key values can be repeated making it possible to parse arrays.
-// The array flag should implement [flag.Value] to that Set() can be called multiple times. For example
+// The array flag should implement [flag.Value] to that Set() can be called multiple times.
+// For example:
 //
 //	my-flag my value
 //	my-array value one
 //	my-array value two
+//
+// Comments are supported with the "#" character:
+//
+//	# ignore me
+//	my-flag my value
 //
 // It is not an error if the path argument, or the file that it points to, is empty.
 func ParseConfigSet(fl *flag.FlagSet, path string) (err error) {
