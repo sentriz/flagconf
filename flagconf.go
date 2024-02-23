@@ -137,6 +137,7 @@ func ParseConfigSet(fl *flag.FlagSet, path string) (err error) {
 		mimicFlagSetError(fl, err)
 	}()
 
+	path = os.ExpandEnv(path)
 	file, err := os.Open(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
