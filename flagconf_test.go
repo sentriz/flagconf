@@ -13,6 +13,7 @@ import (
 
 func TestMain(m *testing.M) {
 	os.Exit(testscript.RunMain(m, map[string]func() int{
+		//nolint:errcheck
 		"test": func() int {
 			_ = flag.String("str", "", "")
 			conf := flag.String("config-path", "", "")
