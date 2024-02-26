@@ -201,11 +201,14 @@ func getSetFlags(fl *flag.FlagSet) map[string]struct{} {
 }
 
 func envKeyForFlag(prefix string, name string) string {
-	prefix = strings.ReplaceAll(prefix, "-", "_")
 	name = strings.ReplaceAll(name, "-", "_")
-	k := strings.Join([]string{prefix, name}, "_")
-	k = strings.ToUpper(k)
-	return k
+	name = strings.ToUpper(name)
+	if prefix == "" {
+		return name
+	}
+	prefix = strings.ReplaceAll(prefix, "-", "_")
+	prefix = strings.ToUpper(prefix)
+	return prefix + "_" + name
 }
 
 func splitEscape(string string, sep, esc string) []string {
