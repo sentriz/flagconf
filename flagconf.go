@@ -74,41 +74,42 @@ func ParseEnv() (err error) {
 // [flag.Value] to that Set() can be called multiple times. The delimiter can be escaped with a backslash. For
 // example MY_APP_ARRAY=a,b\,c,d will call [flag.Value.Set] for "a", "b,c", and "d".
 //
+// Flag values will also be expanded with [os.Expand] and the given env.
+//
 // Note that err can safely be ignored if the [flag.ErrorHandling] is not [flag.ContinueOnError].
 func ParseEnvSet(fl *flag.FlagSet, env []string) (err error) {
 	defer func() {
 		mimicFlagSetError(fl, err)
 	}()
 
-	envMap := map[string]string{}
-	for _, en := range env {
-		if k, v, ok := strings.Cut(en, "="); ok {
-			envMap[k] = v
-		}
-	}
-
 	setFlags := getSetFlags(fl)
 	prefix := filepath.Base(fl.Name())
+
+	envMap := genEnvMap(env)
+	expand := func(v string) string {
+		return os.Expand(v, func(k string) string { return envMap[k] })
+	}
 
 	var flagErrs []error
 	fl.VisitAll(func(f *flag.Flag) {
 		if _, ok := setFlags[f.Name]; ok {
 			return
 		}
-		if vs := envMap[envKeyForFlag(prefix, f.Name)]; vs != "" {
-			for _, v := range splitEscape(vs, ",", `\`) {
-				flagErrs = append(flagErrs, f.Value.Set(v))
-			}
+		key := envKeyForFlag(prefix, f.Name)
+		for _, v := range splitEscape(envMap[key], ",", `\`) {
+			v = expand(v)
+			err = f.Value.Set(v)
+			flagErrs = append(flagErrs, err)
 		}
 	})
 
 	return errors.Join(flagErrs...)
 }
 
-// ParseEnv calls [ParseConfigSet] with the global [flag.CommandLine]. Note that err can safely be ignored
+// ParseEnv calls [ParseConfigSet] with the global [flag.CommandLine] and [os.Environ]. Note that err can safely be ignored
 // if the [flag.ErrorHandling] is not [flag.ContinueOnError].
 func ParseConfig(path string) (err error) {
-	return ParseConfigSet(flag.CommandLine, path)
+	return ParseConfigSet(flag.CommandLine, os.Environ(), path)
 }
 
 // ParseConfigSet visits flags from fl that have not been provided yet, and finds corresponding values in the
@@ -117,19 +118,22 @@ func ParseConfig(path string) (err error) {
 // The format for the config file is one line per flag value, and key value
 // pairs are delimited by a space character. Key values can be repeated making it possible to parse arrays.
 // The array flag should implement [flag.Value] to that Set() can be called multiple times.
-// For example:
 //
 //	my-flag my value
 //	my-array value one
 //	my-array value two
 //
-// Comments are supported with the "#" character:
+// Comments are supported with the "#" character.
 //
 //	# ignore me
 //	my-flag my value
 //
+// Flag values will also be expanded with [os.Expand] and the given env.
+//
+//	my-flag $HOME/dir
+//
 // It is not an error if the path argument, or the file that it points to, is empty.
-func ParseConfigSet(fl *flag.FlagSet, path string) (err error) {
+func ParseConfigSet(fl *flag.FlagSet, env []string, path string) (err error) {
 	if path == "" {
 		return nil
 	}
@@ -137,7 +141,12 @@ func ParseConfigSet(fl *flag.FlagSet, path string) (err error) {
 		mimicFlagSetError(fl, err)
 	}()
 
-	path = os.ExpandEnv(path)
+	envMap := genEnvMap(env)
+	expand := func(v string) string {
+		return os.Expand(v, func(k string) string { return envMap[k] })
+	}
+
+	path = expand(path)
 	file, err := os.Open(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
@@ -178,7 +187,9 @@ func ParseConfigSet(fl *flag.FlagSet, path string) (err error) {
 			return
 		}
 		for _, v := range config[f.Name] {
-			flagErrs = append(flagErrs, f.Value.Set(v))
+			v = expand(v)
+			err := f.Value.Set(v)
+			flagErrs = append(flagErrs, err)
 		}
 	})
 
@@ -200,6 +211,16 @@ func getSetFlags(fl *flag.FlagSet) map[string]struct{} {
 	return m
 }
 
+func genEnvMap(env []string) map[string]string {
+	envMap := map[string]string{}
+	for _, en := range env {
+		if k, v, ok := strings.Cut(en, "="); ok {
+			envMap[k] = v
+		}
+	}
+	return envMap
+}
+
 func envKeyForFlag(prefix string, name string) string {
 	name = strings.ReplaceAll(name, "-", "_")
 	name = strings.ToUpper(name)
@@ -211,9 +232,12 @@ func envKeyForFlag(prefix string, name string) string {
 	return prefix + "_" + name
 }
 
-func splitEscape(string string, sep, esc string) []string {
-	string = strings.ReplaceAll(string, esc+sep, "\x00")
-	tokens := strings.Split(string, sep)
+func splitEscape(str string, sep, esc string) []string {
+	if str == "" {
+		return nil
+	}
+	str = strings.ReplaceAll(str, esc+sep, "\x00")
+	tokens := strings.Split(str, sep)
 	for i, token := range tokens {
 		tokens[i] = strings.ReplaceAll(token, "\x00", sep)
 	}
