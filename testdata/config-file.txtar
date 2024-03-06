@@ -7,10 +7,9 @@ exec test -config-path conf -str other
 stdout 'str other'
 stdout 'arr "value 1", "value 2"'
 
-# invalid config is err
-! exec test -config-path conf-invalid
-! stdout .
-stderr 'unknown config option "unknown-option"'
+# config with missing option is ok
+exec test -config-path conf-unknown-option
+! stderr .
 
 # missing config is ok
 exec test -config-path missing
@@ -33,8 +32,9 @@ arr value 1
 arr value 2
 # ignore comments
 # and flags with no value
-e
--- conf-invalid --
+uh
+
+-- conf-unknown-option --
 unknown-option hello
 
 -- conf-no-perm --

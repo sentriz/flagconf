@@ -156,7 +156,6 @@ func ParseConfigSet(fl *flag.FlagSet, env []string, path string) (err error) {
 	}
 	defer file.Close()
 
-	allFlags := getAllFlags(fl)
 	config := map[string][]string{}
 
 	sc := bufio.NewScanner(file)
@@ -167,9 +166,6 @@ func ParseConfigSet(fl *flag.FlagSet, env []string, path string) (err error) {
 		}
 		if strings.HasPrefix(k, "#") {
 			continue
-		}
-		if _, ok := allFlags[k]; !ok {
-			return fmt.Errorf("unknown config option %q", k)
 		}
 		if v := strings.TrimSpace(v); v != "" {
 			config[k] = append(config[k], v)
@@ -196,13 +192,6 @@ func ParseConfigSet(fl *flag.FlagSet, env []string, path string) (err error) {
 	return errors.Join(flagErrs...)
 }
 
-func getAllFlags(fl *flag.FlagSet) map[string]struct{} {
-	m := map[string]struct{}{}
-	fl.VisitAll(func(f *flag.Flag) {
-		m[f.Name] = struct{}{}
-	})
-	return m
-}
 func getSetFlags(fl *flag.FlagSet) map[string]struct{} {
 	m := map[string]struct{}{}
 	fl.Visit(func(f *flag.Flag) {
