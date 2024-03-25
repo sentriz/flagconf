@@ -29,7 +29,8 @@ stderr 'open config file: open conf-no-perm: permission denied'
 -- conf --
 str the str
 arr value 1
-arr value 2
+# tabs are ok
+arr	value 2
 # ignore comments
 # and flags with no value
 uh

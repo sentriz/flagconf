@@ -160,16 +160,17 @@ func ParseConfigSet(fl *flag.FlagSet, env []string, path string) (err error) {
 
 	sc := bufio.NewScanner(file)
 	for sc.Scan() {
-		k, v, ok := strings.Cut(strings.TrimSpace(sc.Text()), " ")
-		if !ok {
+		line := strings.TrimSpace(sc.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-		if strings.HasPrefix(k, "#") {
-			continue
+		var k, v string
+		if idx := strings.IndexAny(line, "\t "); idx < 0 {
+			k, v = line, "true"
+		} else {
+			k, v = line[:idx], strings.TrimSpace(line[idx:])
 		}
-		if v := strings.TrimSpace(v); v != "" {
-			config[k] = append(config[k], v)
-		}
+		config[k] = append(config[k], v)
 	}
 	if err := sc.Err(); err != nil {
 		return fmt.Errorf("scan config: %w", err)
