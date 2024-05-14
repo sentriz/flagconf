@@ -82,13 +82,14 @@ func ParseEnvSet(fl *flag.FlagSet, env []string) (err error) {
 		mimicFlagSetError(fl, err)
 	}()
 
-	setFlags := getSetFlags(fl)
 	prefix := filepath.Base(fl.Name())
 
 	envMap := genEnvMap(env)
 	expand := func(v string) string {
 		return os.Expand(v, func(k string) string { return envMap[k] })
 	}
+
+	setFlags := getSetFlags(fl)
 
 	var flagErrs []error
 	fl.VisitAll(func(f *flag.Flag) {
@@ -98,8 +99,10 @@ func ParseEnvSet(fl *flag.FlagSet, env []string) (err error) {
 		key := envKeyForFlag(prefix, f.Name)
 		for _, v := range splitEscape(envMap[key], ",", `\`) {
 			v = expand(v)
-			err = f.Value.Set(v)
-			flagErrs = append(flagErrs, err)
+			if err := f.Value.Set(v); err != nil {
+				flagErrs = append(flagErrs, err)
+				continue
+			}
 		}
 	})
 
@@ -185,8 +188,10 @@ func ParseConfigSet(fl *flag.FlagSet, env []string, path string) (err error) {
 		}
 		for _, v := range config[f.Name] {
 			v = expand(v)
-			err := f.Value.Set(v)
-			flagErrs = append(flagErrs, err)
+			if err := f.Value.Set(v); err != nil {
+				flagErrs = append(flagErrs, err)
+				continue
+			}
 		}
 	})
 
