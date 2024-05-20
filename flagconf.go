@@ -82,7 +82,7 @@ func ParseEnvSet(fl *flag.FlagSet, env []string) (err error) {
 		mimicFlagSetError(fl, err)
 	}()
 
-	prefix := filepath.Base(fl.Name())
+	prefix := ReadEnvPrefix(fl)
 
 	envMap := genEnvMap(env)
 	expand := func(v string) string {
@@ -196,6 +196,10 @@ func ParseConfigSet(fl *flag.FlagSet, env []string, path string) (err error) {
 	})
 
 	return errors.Join(flagErrs...)
+}
+
+var ReadEnvPrefix = func(fl *flag.FlagSet) string {
+	return filepath.Base(fl.Name())
 }
 
 func getSetFlags(fl *flag.FlagSet) map[string]struct{} {
