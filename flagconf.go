@@ -189,7 +189,7 @@ func ParseConfigSet(fl *flag.FlagSet, env []string, path string) (err error) {
 		for _, v := range config[f.Name] {
 			v = expand(v)
 			if err := f.Value.Set(v); err != nil {
-				flagErrs = append(flagErrs, err)
+				flagErrs = append(flagErrs, fmt.Errorf("set %s: %w", f.Name, err))
 				continue
 			}
 		}
