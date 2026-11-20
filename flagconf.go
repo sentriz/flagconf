@@ -163,17 +163,9 @@ func ParseConfigSet(fl *flag.FlagSet, env []string, path string) (err error) {
 
 	sc := bufio.NewScanner(file)
 	for sc.Scan() {
-		line := strings.TrimSpace(sc.Text())
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
+		if k, v, ok := parseConfigLine(sc.Text()); ok {
+			config[k] = append(config[k], v)
 		}
-		var k, v string
-		if idx := strings.IndexAny(line, "\t "); idx < 0 {
-			k, v = line, "true"
-		} else {
-			k, v = line[:idx], strings.TrimSpace(line[idx:])
-		}
-		config[k] = append(config[k], v)
 	}
 	if err := sc.Err(); err != nil {
 		return fmt.Errorf("scan config: %w", err)
@@ -198,6 +190,136 @@ func ParseConfigSet(fl *flag.FlagSet, env []string, path string) (err error) {
 	return errors.Join(flagErrs...)
 }
 
+// UpdateConfig sets the values for key in the config file at path, in the format that [ParseConfigSet] reads. Every
+// other line is left exactly as it is, including comments, blank lines, and keys that are not flags.
+//
+// Lines that already set key are rewritten in order, so that comments stay next to them. Values beyond those lines are
+// added after the last one, or at the end of the file if there were none, and lines beyond the values are removed.
+// With no values, key is removed from the file.
+//
+//	# calendars
+//	my-array value one
+//	# contacts
+//	my-array value two
+//
+// After UpdateConfig(path, "my-array", "value 1", "value two", "value three") that file is
+//
+//	# calendars
+//	my-array value 1
+//	# contacts
+//	my-array value two
+//	my-array value three
+//
+// Values are written as given, so "$HOME/dir" stays unexpanded in the file and is expanded when it is read. A value
+// that would not read back the same is an error: an empty one, or one with a line break or surrounding space.
+//
+// Like [ParseConfig], path is expanded with the environment. The file and its directory are created if they are
+// missing. An existing file keeps its permissions and is replaced in one step, and a symlink is followed so that the
+// file it points to is the one written. A file that already has the values is not written at all.
+func UpdateConfig(path string, key string, values ...string) error {
+	if key == "" || key != strings.TrimSpace(key) || strings.HasPrefix(key, "#") || strings.ContainsAny(key, "\t \r\n") {
+		return fmt.Errorf("invalid config key %q", key)
+	}
+	for _, v := range values {
+		if v == "" || v != strings.TrimSpace(v) || strings.ContainsAny(v, "\r\n") {
+			return fmt.Errorf("invalid config value %q for %s", v, key)
+		}
+	}
+
+	path = os.ExpandEnv(path)
+	if path == "" {
+		return errors.New("no config file path")
+	}
+	if resolved, err := filepath.EvalSymlinks(path); err == nil {
+		path = resolved
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("read config file: %w", err)
+	}
+
+	eol := "\n"
+	if strings.Contains(string(data), "\r\n") {
+		eol = "\r\n"
+	}
+
+	var lines []string
+	var rest = values
+	var end = -1
+	for _, line := range strings.SplitAfter(string(data), "\n") {
+		if line == "" {
+			continue
+		}
+		k, v, ok := parseConfigLine(line)
+		if !ok || k != key {
+			lines = append(lines, line)
+			continue
+		}
+		if len(rest) == 0 {
+			continue
+		}
+		if v != rest[0] {
+			line = key + " " + rest[0] + eol
+		}
+		lines = append(lines, line)
+		rest = rest[1:]
+		end = len(lines)
+	}
+
+	if len(rest) > 0 {
+		if end < 0 {
+			end = len(lines)
+		}
+		if end > 0 && !strings.HasSuffix(lines[end-1], "\n") {
+			lines[end-1] += eol
+		}
+		added := make([]string, 0, len(rest))
+		for _, v := range rest {
+			added = append(added, key+" "+v+eol)
+		}
+		lines = append(lines[:end], append(added, lines[end:]...)...)
+	}
+
+	updated := strings.Join(lines, "")
+	if updated == string(data) {
+		return nil
+	}
+
+	mode := os.FileMode(0o644)
+	if info, err := os.Stat(path); err == nil {
+		mode = info.Mode().Perm()
+	}
+
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("create config dir: %w", err)
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".*.tmp")
+	if err != nil {
+		return fmt.Errorf("create temp config file: %w", err)
+	}
+	defer func() { _ = os.Remove(tmp.Name()) }()
+
+	_, err = tmp.WriteString(updated)
+	if err == nil {
+		err = tmp.Chmod(mode)
+	}
+	if err == nil {
+		err = tmp.Sync()
+	}
+	if closeErr := tmp.Close(); err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		return fmt.Errorf("write temp config file: %w", err)
+	}
+
+	if err := os.Rename(tmp.Name(), path); err != nil {
+		return fmt.Errorf("replace config file: %w", err)
+	}
+	return nil
+}
+
 var ReadEnvPrefix = func(fl *flag.FlagSet) string {
 	return filepath.Base(fl.Name())
 }
@@ -218,6 +340,17 @@ func genEnvMap(env []string) map[string]string {
 		}
 	}
 	return envMap
+}
+
+func parseConfigLine(line string) (key, value string, ok bool) {
+	line = strings.TrimSpace(line)
+	if line == "" || strings.HasPrefix(line, "#") {
+		return "", "", false
+	}
+	if idx := strings.IndexAny(line, "\t "); idx >= 0 {
+		return line[:idx], strings.TrimSpace(line[idx:]), true
+	}
+	return line, "true", true
 }
 
 func envKeyForFlag(prefix string, name string) string {
